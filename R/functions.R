@@ -311,62 +311,7 @@ perform_chi_square_test <- function(data, year_col, metric_col_name, cutoff_year
 
 # === PLOTTING FUNCTIONS ===
 
-#' Plot pathologist case volume comparison
-#' @param pathologist_volume_by_year Data frame with year, pathologist, and case counts
-#' @param output_file Character path to save plot
-#' @return Combined ggplot object
-plot_pathologist_volume <- function(pathologist_volume_by_year, output_file) {
-  p_2006 <- pathologist_volume_by_year %>%
-    filter(year == 2006) %>%
-    ggplot() +
-    geom_col(aes(x = reorder(pathologist, -n), y = n)) +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(title = "Pathologist Case Volume - 2006", x = "Pathologist", y = "Case Count")
-  
-  p_2015 <- pathologist_volume_by_year %>%
-    filter(year == 2015) %>%
-    ggplot() +
-    geom_col(aes(x = reorder(pathologist, -n), y = n)) +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(title = "Pathologist Case Volume - 2015", x = "Pathologist", y = "Case Count")
-  
-  combined_plot <- plot_grid(p_2006, p_2015, ncol = 1)
-  ggsave(output_file, combined_plot, height = 10, width = 12)
-  
-  combined_plot
-}
 
-#' Plot HPV diagnosis rate trends over time
-#' @param hpv_analysis Data frame with HPV analysis results
-#' @param output_file Character path to save plot
-#' @return ggplot object
-plot_hpv_trends <- function(hpv_analysis, output_file) {
-  hpv_yearly <- hpv_analysis %>%
-    group_by(year) %>%
-    summarise(
-      total_cases = n(),
-      hpv_cases = sum(hpv, na.rm = TRUE),
-      hpv_rate = hpv_cases / total_cases,
-      .groups = "drop"
-    )
-  
-  p <- hpv_yearly %>%
-    ggplot(aes(x = year, y = hpv_rate)) +
-    geom_line(size = 1) +
-    geom_point(size = 3) +
-    scale_y_continuous(labels = percent_format()) +
-    theme_bw() +
-    labs(
-      title = "HPV Diagnosis Rate Over Time",
-      x = "Year",
-      y = "HPV Rate (%)"
-    )
-  
-  ggsave(output_file, p, height = 6, width = 8)
-  p
-}
 
 #' Plot HPV diagnosis distribution by year
 #' @param hpv_analysis Data frame with HPV analysis results
@@ -487,35 +432,6 @@ plot_p16_dysplasia_panel <- function(p16_dysplasia_combined, output_file) {
   p
 }
 
-#' Plot CIN distribution over time as area chart
-#' @param cin_analysis Data frame with CIN analysis results
-#' @param output_file Character path to save plot
-#' @return ggplot object
-plot_cin_distribution <- function(cin_analysis, output_file) {
-  cin_yearly <- cin_analysis %>%
-    count(year, dysplasia) %>%
-    group_by(year) %>%
-    mutate(
-      total = sum(n),
-      proportion = n / total
-    ) %>%
-    ungroup()
-  
-  p <- cin_yearly %>%
-    ggplot(aes(x = year, y = proportion, fill = dysplasia)) +
-    geom_area(position = "fill") +
-    scale_y_continuous(labels = percent_format()) +
-    theme_bw() +
-    labs(
-      title = "CIN/Dysplasia Distribution Over Time",
-      x = "Year",
-      y = "Proportion",
-      fill = "Diagnosis"
-    )
-  
-  ggsave(output_file, p, height = 6, width = 10)
-  p
-}
 
 #' Create pathologist streamgraph visualization
 #' @param pathologist_volume_by_year Data frame with year, pathologist, and case counts

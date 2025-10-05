@@ -358,15 +358,6 @@ list(
     perform_chi_square_test(cin_analysis, year, "dysplasia")
   ),
   
-  tar_target(
-    pathologist_volume_plot,
-    plot_pathologist_volume(pathologist_volume_by_year, "outputs/plots/pathologist_volume_comparison.png")
-  ),
-  
-  tar_target(
-    hpv_trends_plot,
-    plot_hpv_trends(hpv_analysis, "outputs/plots/hpv_trends.png")
-  ),
   
   tar_target(
     hpv_yr_plot_1,
@@ -393,10 +384,6 @@ list(
     plot_p16_dysplasia_panel(p16_dysplasia_combined, "outputs/plots/figure_7.png")
   ),
   
-  tar_target(
-    cin_distribution_plot,
-    plot_cin_distribution(cin_analysis, "outputs/plots/cin_distribution.png")
-  ),
   
   tar_target(
     pathologist_streamgraph,
