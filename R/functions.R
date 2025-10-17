@@ -55,7 +55,85 @@ dxs_map <- function(x) {
   x[str_length(x) >= 5]
 }
 
+#' Link p16 staining to individual diagnoses
+#' @param cin_analysis Data frame with CIN analysis results at diagnosis level
+#' @return Data frame with p16_ondx column indicating p16 status per diagnosis
+link_p16_to_diagnoses <- function(cin_analysis) {
+  # Regex pattern to detect p16 (avoiding "SEPT" false positives)
+  psix <- "(?<!SE)P[[:blank:]]*1[[:blank:]]*6"
+  
+  # Detect p16 in different locations
+  result <- cin_analysis %>%
+    mutate(
+      # p16 mentioned directly in this diagnosis text
+      p16_dx = str_detect(str_to_upper(dxs), psix),
+      # p16 mentioned anywhere in the full report
+      p16_report = str_detect(str_to_upper(report), psix)
+    ) %>%
+    mutate(
+      # Detect "see note" in diagnosis (remove all spaces first to catch variations)
+      sn = str_detect(
+        str_to_upper(dxs) %>% 
+          str_replace_all(., fixed(" "), "") %>% 
+          str_replace_all(., "[[:space:]]", ""),
+        "SEENOTE"
+      )
+    ) %>%
+    mutate(
+      # Initial assignment: p16 positive if either:
+      # 1. p16 mentioned in diagnosis text, OR
+      # 2. "see note" in diagnosis AND p16 somewhere in report
+      p16_ondx = ifelse((sn & p16_report) | p16_dx, TRUE, FALSE)
+    ) %>%
+    mutate(
+      # Count total "see note" instances in the report
+      sn_count = str_count(str_to_upper(report), "SEE NOTE")
+    ) %>%
+    ungroup()
+  
+  result
+}
 
+#' Apply manual p16 curation for complex cases
+#' @param p16_linked_data Data frame with initial p16_ondx assignments
+#' @param manual_curation_file Path to Excel file with manual curation
+#' @return Data frame with manually curated p16_ondx values applied
+apply_manual_p16_curation <- function(p16_linked_data, manual_curation_file) {
+  
+
+  if (!file.exists(manual_curation_file)) {
+    warning(paste("Manual curation file not found:", manual_curation_file))
+    warning("Proceeding with automated p16 assignments only")
+    return(p16_linked_data)
+  }
+  
+  # Read manually curated assignments
+  manual_corrections <- read_excel(
+    manual_curation_file,
+    col_types = c(
+      "blank", "blank", "text",      # case_num
+      "blank", "blank", "blank", "blank",
+      "blank", "blank", "blank", "blank", "blank",
+      "blank", "numeric",              # rownum
+      "blank", "blank",
+      "blank", "blank", "numeric",     # p16_ondx
+      "blank"
+    )
+  ) %>%
+    mutate(p16_ondx = as.logical(p16_ondx)) %>%
+    select(case_num, rownum, p16_ondx_manual = p16_ondx)
+  
+  # Merge manual corrections back
+  result <- p16_linked_data %>%
+    left_join(manual_corrections, by = c("case_num", "rownum")) %>%
+    mutate(
+      # Use manual correction if available, otherwise use automated assignment
+      p16_ondx = ifelse(is.na(p16_ondx_manual), p16_ondx, p16_ondx_manual)
+    ) %>%
+    select(-p16_ondx_manual)  # Clean up temporary column
+  
+  result
+}
 
 # === DATA PROCESSING FUNCTIONS ===
 
@@ -215,18 +293,7 @@ analyze_cin <- function(diagnosis_level_data) {
     )
 }
 
-#' Combine CIN analysis with P16 data
-#' @param cin_analysis Data frame with CIN analysis results
-#' @param p16_analysis Data frame with P16 analysis results
-#' @return Data frame with both CIN and P16 information merged
-combine_p16_dysplasia <- function(cin_analysis, p16_analysis) {
-  cin_analysis %>%
-    left_join(
-      p16_analysis %>% select(case_num, year, p16),
-      by = c("case_num", "year")
-    ) %>%
-    mutate(p16_ondx = p16)
-}
+
 
 # === STATISTICAL HELPER FUNCTIONS ===
 
@@ -688,7 +755,7 @@ create_abstract_statistics_report <- function(hpv_analysis, p16_analysis, cin_an
 create_results_section_report <- function(hpv_analysis, p16_analysis, cin_analysis,
                                           output_txt, output_csv) {
   # PERIOD COUNTS
-  pre_2012_count <- hpv_analysis %>% filter(year <= 2012) %>% nrow()
+  pre_2012_count <- hpv_analysis %>% filter(year < 2012) %>% nrow()
   post_2012_count <- hpv_analysis %>% filter(year > 2012) %>% nrow()
   final_diagnoses <- nrow(hpv_analysis)
   
@@ -714,7 +781,12 @@ create_results_section_report <- function(hpv_analysis, p16_analysis, cin_analys
   
   # CIN DIAGNOSIS CHANGES
   cin_stats <- cin_analysis %>%
-    mutate(period = ifelse(year <= 2012, "pre", "post")) %>%
+    mutate(period = case_when(
+      year < 2012 ~ "pre",
+      year > 2012 ~ "post",
+      TRUE ~ "washout"
+    )) %>%
+    filter(period != "washout") %>%
     group_by(period, dysplasia) %>%
     summarise(n = n(), .groups = "drop") %>%
     group_by(period) %>%
@@ -744,7 +816,12 @@ create_results_section_report <- function(hpv_analysis, p16_analysis, cin_analys
   
   # Statistical tests for CIN changes
   cin_test_data <- cin_analysis %>%
-    mutate(period = ifelse(year <= 2012, "pre", "post"))
+    mutate(period = case_when(
+      year < 2012 ~ "pre",
+      year > 2012 ~ "post",
+      TRUE ~ "washout"
+    )) %>%
+    filter(period != "washout")
   
   chisq_low <- chisq.test(table(cin_test_data$period, cin_test_data$dysplasia == "Low Grade"))
   chisq_no_cin <- chisq.test(table(cin_test_data$period, cin_test_data$dysplasia == "No CIN"))

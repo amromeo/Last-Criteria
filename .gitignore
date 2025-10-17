@@ -49,3 +49,9 @@ po/*~
 rsconnect/
 
 data
+
+_targets
+
+*.Rproj
+
+outputs

@@ -334,6 +334,30 @@ list(
     analyze_cin(diagnosis_level_data)
   ),
   
+  # Link p16 to individual diagnoses with "see note" handling
+  tar_target(
+    p16_linked_diagnoses,
+    link_p16_to_diagnoses(cin_analysis)
+  ),
+  
+  # Apply manual p16 curation for complex cases
+  tar_target(
+    p16_curated_diagnoses,
+    apply_manual_p16_curation(
+      p16_linked_diagnoses, 
+      "data/multiplep16.xlsx"
+    )
+  ),
+  
+
+  tar_target(
+    p16_dysplasia_combined,
+    {
+      p16_curated_diagnoses %>%
+        select(case_num, year, dysplasia, p16_ondx, everything())
+    }
+  ),
+  
 
   
   tar_target(
@@ -374,10 +398,6 @@ list(
     plot_cin_by_year(cin_analysis, "outputs/plots/figure_6.png")
   ),
   
-  tar_target(
-    p16_dysplasia_combined,
-    combine_p16_dysplasia(cin_analysis, p16_analysis)
-  ),
   
   tar_target(
     p16_prop_panel_plot,
